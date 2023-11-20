@@ -1,0 +1,53 @@
+// create a GitHub Actions workflow file (`.github/workflows/main.yml`) using the AWS environment:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Setup AWS CLI
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        sudo apt install -y python3-pip
+        sudo pip install streamlit
+        sudo pip install pytest
+
+    - name: Run tests
+      run: sudo pytest /home/ubuntu/test_calculator.py
+
+    - name: Deploy
+      if: ${{ success() }}
+      run: |
+        echo 'Deploying into the ec2'
+        echo 'workspace directory is ${{ github.workspace }}'
+        ls ${{ github.workspace }}
+        pwd
+        scp -o StrictHostKeyChecking=no ${{ github.workspace }}/* ${EC2_HOST}:${REMOTE_DIR}
+        ssh -o StrictHostKeyChecking=no ${EC2_HOST} 'sudo cp ${REMOTE_DIR}/calculator.py /etc/nginx/sites-available/ && sudo ln -s /etc/nginx/sites-available/calculator.py /etc/nginx/sites-enabled/'
+        ssh -o StrictHostKeyChecking=no ${EC2_HOST} 'sudo service nginx restart'
+      env:
+        EC2_HOST: ubuntu@IPAddress
+        REMOTE_DIR: /home/ubuntu
+```
+
